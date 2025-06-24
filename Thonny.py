@@ -1,12 +1,19 @@
-# ESP32 MicroPython Controller with Dijkstra's Algorithm for Webots HIL
-# Albert Jestin Sutedja / 466092 Hanze
-# Code designed by Albert + Inspo & Assistance from Simon
-# ESP Connection design from Simon
+"""
+ESP32 MicroPython Controller for Webots HIL Integration with Dijkstra Pathfinding
 
-# Step-by-step
-# 1. Run ESP Code
-# 2. Get ESP IP Address (Shell)
-# 3. Edit webots code
+Key Features:
+1. **Wi-Fi Connectivity**
+2. **Webots Communication**
+3. **Pathfinding**
+4. **LED Feedback**
+5. **Obstacle Detection and Map Update**
+6. **Movement Control**
+
+The code supports real-time communication and pathfinding control, making it suitable for simulating robot navigation with dynamic grid-based environments in Webots.
+
+#Author: Freelo Kamara 458509
+inspired by Albert
+"""
 
 import network
 import socket
@@ -16,7 +23,7 @@ import gc
 from machine import Pin
 import math
 
-# --- Configs ---
+# ---- Configs ----
 # WiFi Configuration
 WIFI_SSID = 'KPNF91B36' # WiFi SSID
 WIFI_PASSWORD = 'vJhc7vJjPxJXMqxr' # WiFi password
@@ -56,7 +63,7 @@ planned_path = []
 current_path_index = 0
 path_needs_replan = True
 last_replan_time = 0
-REPLAN_INTERVAL_MS = 1000
+REPLAN_INTERVAL_MS = 1000 
 # action_if_dijkstra_fails variable removed
 
 # Dijkstra Algorithm
@@ -128,8 +135,9 @@ def dijkstra(grid, start_node, end_node):
     # print(f"Dijkstra: Path from {start_node} to {end_node} has {len(path)} steps (explored {nodes_explored_count}).") # Optional: for debugging
     return path
 
-# WiFi Connection
+# WiFi Connection Setup
 def connect_wifi(ssid, password):
+    # Connect to WiFi and return the connection object
     wlan = network.WLAN(network.STA_IF)
     wlan.active(True)
     if not wlan.isconnected():
@@ -137,21 +145,20 @@ def connect_wifi(ssid, password):
         wlan.connect(ssid, password)
         timeout = 10
         while not wlan.isconnected() and timeout > 0:
-            # print('.', end='') # Optional: for visual feedback during connection
-            # led.value(not led.value()) # Optional: for visual feedback
             time.sleep(1)
             timeout -= 1
     if wlan.isconnected():
-        led.on()
+        led.on()  # Turn LED on when connected
         print(f'\nWiFi Connected! IP address: {wlan.ifconfig()[0]}')
         return wlan
     else:
-        led.off()
+        led.off()  # Turn LED off if connection fails
         print('\nWiFi Connection Failed.')
         return None
 
-# Server Setup
+# Server Setup to Accept Webots Connection
 def start_server(port):
+    # Start the server to listen for Webots connection
     addr = socket.getaddrinfo('0.0.0.0', port)[0][-1]
     s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -159,6 +166,8 @@ def start_server(port):
     s.listen(1)
     print(f'ESP32 server listening on port {port}')
     return s
+
+turn_180_due_to_obstacle = False  # Add this global flag at the top with other globals
 
 # Main Logic to Determine Action based on Path
 def get_action_from_path(robot_pos_on_path, world_theta_rad, webots_line_sensors_binary):
@@ -239,7 +248,8 @@ if __name__ == "__main__":
                     path_needs_replan = True
                 except OSError as e:
                     if e.args[0] == 116: # ETIMEDOUT - For server_socket.accept()
-                        pass 
+                        led.value(not led.value())
+                        time.sleep(0.5)
                     else:
                         print(f"Accept error: {e}") 
                         conn = None 
@@ -279,7 +289,8 @@ if __name__ == "__main__":
                                                     grid_map[obs_row][obs_col] = 1
                                                     map_updated_by_obstacles = True
                                                     print(f"ESP Map Updated: Obstacle added at ({obs_row}, {obs_col})")
-                                
+                                                    turn_180_due_to_obstacle = True  # Set flag when obstacle detected
+
                                 if map_updated_by_obstacles:
                                     path_needs_replan = True
                                     print("ESP: Grid map updated, forcing replan.")
@@ -332,20 +343,25 @@ if __name__ == "__main__":
                                 
                                 action_to_send = 'stop' 
                                 
-                                if planned_path and current_robot_grid_pos_path and goal_grid_pos: 
-                                    action_to_send, _ = get_action_from_path(
-                                        current_robot_grid_pos_path,
-                                        robot_theta_rad_from_webots,
-                                        line_sensors_binary_from_webots
-                                    )
-                                    
-                                    if current_path_index < len(planned_path) - 1:
-                                        prospective_next_node_on_path = planned_path[current_path_index + 1]
-                                        if current_robot_grid_pos_actual == prospective_next_node_on_path:
-                                            current_path_index += 1
-                                            current_robot_grid_pos_path = prospective_next_node_on_path
+                                # --- Insert this block before sending action to Webots ---
+                                if turn_180_due_to_obstacle:
+                                    action_to_send = 'turn_180'
+                                    turn_180_due_to_obstacle = False  # Reset flag after sending
+                                else:
+                                    if planned_path and current_robot_grid_pos_path and goal_grid_pos: 
+                                        action_to_send, _ = get_action_from_path(
+                                            current_robot_grid_pos_path,
+                                            robot_theta_rad_from_webots,
+                                            line_sensors_binary_from_webots
+                                        )
+                                        
+                                        if current_path_index < len(planned_path) - 1:
+                                            prospective_next_node_on_path = planned_path[current_path_index + 1]
+                                            if current_robot_grid_pos_actual == prospective_next_node_on_path:
+                                                current_path_index += 1
+                                                current_robot_grid_pos_path = prospective_next_node_on_path
 
-                                elif current_robot_grid_pos_actual == goal_grid_pos: 
+                                if current_robot_grid_pos_actual == goal_grid_pos: 
                                     action_to_send = 'stop'
                                     print("🎉 Goal Reached (actual pos matches goal)! Sending STOP.")
                                     planned_path = [] 
