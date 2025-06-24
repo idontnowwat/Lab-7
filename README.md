@@ -12,7 +12,7 @@ This project demonstrates real-time robot navigation in a Webots simulation usin
   - `numpy` (if used elsewhere)
 - **Webots Python API:** Provided by Webots installation
 
-### ESP32 MicroPython Controller (`# Thonny.py`)
+### ESP32 MicroPython Controller (`#Thonny.py`)
 - **ESP32 board** with MicroPython firmware (https://micropython.org/download/esp32/)
 - **MicroPython packages:**
   - `network`
@@ -30,7 +30,7 @@ This project demonstrates real-time robot navigation in a Webots simulation usin
 - Use a tool like `esptool.py` for flashing.
 
 ### 2. Upload ESP32 Script
-- Upload [`# Thonny.py`] to the ESP32 using `ampy`, `mpremote`, or Thonny.
+- Upload [`#Thonny.py`] to the ESP32 using `ampy`, `mpremote`, or Thonny.
 - Edit the WiFi credentials (`WIFI_SSID`, `WIFI_PASSWORD`) in the script to match your network.
 - Reset or reboot the ESP32 to start the script.
 
